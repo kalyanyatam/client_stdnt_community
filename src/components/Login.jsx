@@ -1,34 +1,49 @@
 import React, { useState } from "react";
-import Axios from "axios";
+import axios from "../utils/axios";
 import { Link, useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  Axios.defaults.withCredentials = true;
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    Axios.post("http://localhost:3000/auth/login", {
-      email,
-      password,
-    })
-      .then((response) => {
-        if (response.data.status) {
-          localStorage.setItem("token", response.data.token);
-          navigate("/chat");
-        }
-      })
-      .catch((err) => {
-        console.log(err);
+    setError("");
+    setLoading(true);
+    
+    try {
+      const response = await axios.post("/auth/login", {
+        email,
+        password,
       });
+
+      console.log('Login response:', response.data);
+
+      if (response.data.status) {
+        // Store token in localStorage
+        localStorage.setItem("token", response.data.token);
+        console.log('Token stored in localStorage:', response.data.token);
+
+        // Navigate to chat page
+        navigate("/chat", { replace: true });
+      } else {
+        setError("Login failed. Please check your credentials.");
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8 flex items-center">
-      <div className="flex flex-col lg:flex-row w-full max-w-6xl mx-auto bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="max-w-4xl w-full mx-auto flex flex-col lg:flex-row bg-white rounded-xl shadow-lg overflow-hidden">
         {/* Left side - Login Form */}
         <div className="lg:w-1/2 p-8">
           <form
@@ -36,6 +51,11 @@ const Login = () => {
             onSubmit={handleSubmit}
           >
             <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <span className="block sm:inline">{error}</span>
+              </div>
+            )}
             <div className="mb-4">
               <label htmlFor="email" className="block text-gray-700">
                 Email:
@@ -47,6 +67,8 @@ const Login = () => {
                 placeholder="Email"
                 className="w-full px-3 py-2 border border-gray-300 rounded mt-1 focus:ring-black focus:border-black"
                 onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
               />
             </div>
             <div className="mb-4">
@@ -59,13 +81,16 @@ const Login = () => {
                 placeholder="******"
                 className="w-full px-3 py-2 border border-gray-300 rounded mt-1 focus:ring-black focus:border-black"
                 onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 mb-6"
+              className={`w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 mb-6 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={loading}
             >
-              Login
+              {loading ? 'Logging in...' : 'Login'}
             </button>
             <div className="flex justify-between items-center">
               <Link to="/forgotPassword" className="text-blue-500">

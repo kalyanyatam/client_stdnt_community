@@ -14,6 +14,7 @@ import UserProfile from './chat/UserProfile';
 import GridPattern from './GridPattern';
 import GetPost from './Posts/GetPost';
 import Groups from './chat/community/Groups';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
   return (
@@ -24,15 +25,18 @@ const App = () => {
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgotPassword" element={<ForgotPassword />} />
         <Route path="/resetPassword/:token" element={<ResetPassword />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/chat/:username" element={<ChatPageWrapper />} />
-        <Route path="/myprofile" element={<MyProfile />} />
-        <Route path="/profile/:username" element={<UserProfile />} />
-        <Route path="/posts" element={<Posts />} />
-        <Route path='/getposts' element={<GetPost />} />
         
-        <Route path='/groups' element={<Groups />} />
-        <Route path='/grid' element={<GridPattern />} />
+        {/* Protected Routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:username" element={<ChatPageWrapper />} />
+          <Route path="/myprofile" element={<MyProfile />} />
+          <Route path="/profile/:username" element={<UserProfile />} />
+          <Route path="/posts" element={<Posts />} />
+          <Route path='/getposts' element={<GetPost />} />
+          <Route path='/groups' element={<Groups />} />
+          <Route path='/grid' element={<GridPattern />} />
+        </Route>
       </Routes>
     </Router>
   );

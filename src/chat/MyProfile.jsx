@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import BottomNav from './BottomNav';
-import axios from 'axios';
+import axios from '../utils/axios';
 import { useNavigate } from 'react-router-dom';
 
 const MyProfile = () => {
@@ -20,7 +20,7 @@ const MyProfile = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    axios.get('http://localhost:3000/auth/userprofile', { withCredentials: true })
+    axios.get('/auth/userprofile')
       .then((res) => {
         setProfile(res.data);
         setFormData({
@@ -33,8 +33,13 @@ const MyProfile = () => {
           gender: res.data.gender
         });
       })
-      .catch((err) => setError(err.message));
-  }, []);
+      .catch((err) => {
+        setError(err.message);
+        if (err.response?.status === 401) {
+          navigate('/login');
+        }
+      });
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -47,22 +52,32 @@ const MyProfile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.put('http://localhost:3000/auth/userprofile', formData, {
-        withCredentials: true,
-      });
+      const response = await axios.put('/auth/userprofile', formData);
       if (response.data) {
         setProfile(response.data);
         setEditMode(false);
       }
     } catch (err) {
       console.error(err);
+      if (err.response?.status === 401) {
+        navigate('/login');
+      }
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setIsLoggedIn(false);
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await axios.get('/auth/logout');
+      localStorage.removeItem('token');
+      setIsLoggedIn(false);
+      navigate('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Still remove token and redirect even if server request fails
+      localStorage.removeItem('token');
+      setIsLoggedIn(false);
+      navigate('/login');
+    }
   };
 
   return (

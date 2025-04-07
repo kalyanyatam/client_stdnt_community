@@ -3,52 +3,127 @@ import axios from "axios";
 import BottomNav from "./BottomNav";
 import { useNavigate } from "react-router-dom";
 import SearchUsers from "./SearchUsers";
-
+import Cookies from 'js-cookie';
 const Chat = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const API_URL = "http://localhost:3000";
 
+  const fetchPosts = async () => {
+    try {
+      const res = await axios.get("http://localhost:3000/api/post/getposts");
+      console.log("Fetched posts:", res.data);
+      
+      if (Array.isArray(res.data)) {
+        setPosts(res.data);
+      } else if (Array.isArray(res.data.posts)) {
+        setPosts(res.data.posts);
+      } else {
+        console.error("Unexpected response format:", res.data);
+        setPosts([]); // fallback to empty array
+      }
+    } catch (err) {
+      console.error("Error fetching posts:", err);
+      setPosts([]); // fallback on error
+    }
+  };
+  
+
+  
   const handleUserClick = async (contact) => {
     try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      console.log('Token:', token);
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      console.log('Creating chat with user:', contact._id);
       const response = await axios.post(
-        "http://localhost:3000/api/chats/create",
+        `${API_URL}/api/chats/create`,
         {
-          userId1: profile._id,
-          userId2: contact._id,
+          userId: contact._id
         },
-        { withCredentials: true }
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
       );
 
-      navigate(`/chat/${response.data._id}`);
+      if (response.data.success && response.data.chat) {
+        const chatId = response.data.chat._id;
+        console.log('Chat created successfully, navigating to:', chatId);
+        // Wait for a brief moment to ensure the chat is saved
+        await new Promise(resolve => setTimeout(resolve, 100));
+        // Use state to trigger navigation
+        navigate(`/chat/${chatId}`, { 
+          state: { chatId },
+          replace: true 
+        });
+      } else {
+        console.error("Invalid chat response:", response.data);
+        setError("Failed to create chat");
+      }
     } catch (error) {
       console.error("Error creating chat:", error);
+      setError(error.response?.data?.message || "Failed to create chat. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchFriends = () => {
-    axios
-      .get("http://localhost:3000/auth/friends", { withCredentials: true })
-      .then((res) => {
-        setContacts(res.data);
-      })
-      .catch((err) => {
-        console.log(err);
-      });
+  const fetchFriends = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Token:', token);
+      const res = await axios.get("http://localhost:3000/auth/friends", {
+        headers: { Authorization: `Bearer ${token}` }
+      } );
+      setContacts(res.data);
+    } catch (err) {
+      console.error("Error fetching friends:", err);
+    }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Token:', token);
+      const res = await axios.get("http://localhost:3000/auth/userprofile",
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setProfile(res.data);
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+      // Handle unauthorized access
+      if (err.response?.status === 401) {
+        navigate('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    axios
-      .get("http://localhost:3000/auth/userprofile", { withCredentials: true })
-      .then((res) => {
-        setProfile(res.data);
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
+    fetchProfile();
     fetchFriends();
+    fetchPosts();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
@@ -74,30 +149,81 @@ const Chat = () => {
       </div>
 
       {/* Contacts Grid */}
-      <div className="flex-grow px-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {contacts.map((contact, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-lg shadow-md p-5 hover:shadow-lg transition duration-300 cursor-pointer flex flex-col items-center"
-              onClick={() => handleUserClick(contact)}
-            >
-              <div className="flex items-center space-x-4">
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold"
-                  style={{ backgroundColor: "#de6d6d" }}
-                >
-                  <span>{contact.profileTheme}</span>
-                </div>
-                <h2 className="text-xl font-semibold text-blue-800">
-                  {contact.username}
-                </h2>
-              </div>
-              <p className="text-gray-600 mt-2">Online</p>
-            </div>
-          ))}
+     {/* Contacts Horizontal Scroll */}
+<div className="bg-white px-4 py-3 overflow-x-auto flex space-x-5 border-b border-gray-200 scrollbar-hide">
+  {contacts.map((contact) => (
+    <div
+      key={contact._id}
+      className="flex flex-col items-center cursor-pointer relative"
+      onClick={() => handleUserClick(contact)}
+    >
+      {/* Profile Circle (Bigger) */}
+      <div className="relative">
+        <div className="w-20 h-20 rounded-full bg-blue-200 flex items-center justify-center text-2xl font-bold text-white overflow-hidden">
+          {contact.profilePic ? (
+            <img
+              src={contact.profilePic}
+              alt={contact.username}
+              className="w-full h-full object-cover rounded-full"
+            />
+          ) : (
+            <span>{contact.profileTheme || contact.username[0]}</span>
+          )}
+        </div>
+        {/* Online Status Dot (Bigger) */}
+        <span
+          className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white ${
+            contact.isOnline ? "bg-green-500" : "bg-gray-400"
+          }`}
+        ></span>
+      </div>
+
+      {/* Username (Slightly Larger & Bolder) */}
+      <p className="text-sm font-medium text-center mt-2 text-gray-800 w-20 truncate">
+        {contact.username}
+      </p>
+    </div>
+  ))}
+</div>
+<div className="space-y-6">
+  {Array.isArray(posts) && posts.length > 0 ? (
+    posts.map((post) => (
+      <div
+        key={post._id}
+        className="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-md max-w-md mx-auto"
+      >
+        {/* User Info */}
+        <div className="flex items-center px-4 py-3">
+          <img
+            src={post.user?.profilePic || "/default-user.png"} // fallback image
+            alt="User"
+            className="w-10 h-10 rounded-full mr-3 object-cover"
+          />
+          <span className="font-semibold text-sm">{post.user?.username || "Unknown User"}</span>
+        </div>
+
+        {/* Post Image */}
+        {post.imageUrl && (
+          <img
+            src={post.imageUrl}
+            alt={post.title}
+            className="w-full object-cover"
+          />
+        )}
+
+        {/* Post Description */}
+        <div className="px-4 py-2">
+          <p className="text-sm">
+            <span className="font-semibold">{post.user?.username || "User"} </span>
+            {post.desc}
+          </p>
         </div>
       </div>
+    ))
+  ) : (
+    <p className="text-center text-gray-500">No posts available.</p>
+  )}
+</div>
 
       {/* Bottom Navigation */}
       <BottomNav />
